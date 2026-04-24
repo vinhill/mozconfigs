@@ -1,0 +1,2 @@
+# partial noopt via selective --disable-optimize
+ac_add_options MOZ_BUILD_HOOK=$MOZCONFIGS/noopt-dom-buildhook.py

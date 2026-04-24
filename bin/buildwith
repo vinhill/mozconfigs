@@ -8,23 +8,64 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-CHECKOUT="$(git rev-parse --show-toplevel 2>/dev/null || hg root)"
+CHECKOUT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$CHECKOUT" ]; then
+  echo "buildwith must be run from a git checkout" >&2
+  exit 1
+fi
 
-MODIFIERS="$(printf '%s\n' "$@" | sort | tr '\n' ' ')"
+MOZCONFIGS_REPO="$(realpath "$(dirname "$0")/..")"
 
-MOZCONFIGS="$(realpath $(dirname "$0")/../mozconfigs)"
-
+MOZCONFIGS="$MOZCONFIGS_REPO/mozconfigs"
+USER_CONFIGS="$MOZCONFIGS_REPO/user-configs"
+BUILDWITH_CONFIG="$MOZCONFIGS_REPO/buildwith.conf"
 
 NEWLINE='
 '
 
+DEFAULT_MODIFIERS=(
+  base
+  compile-environment
+)
+if [ -f "$BUILDWITH_CONFIG" ]; then
+  # shellcheck source=/dev/null
+  source "$BUILDWITH_CONFIG"
+fi
+
+MODIFIERS="$(printf '%s\n' "${DEFAULT_MODIFIERS[@]}" "$@" | sort -u | tr '\n' ' ')"
+
+resolve_modifier_path() {
+  local modifier="$1"
+
+  if [ -f "$USER_CONFIGS/$modifier" ]; then
+    printf '%s\n' "$USER_CONFIGS/$modifier"
+    return 0
+  fi
+
+  if [ -f "$MOZCONFIGS/$modifier" ]; then
+    printf '%s\n' "$MOZCONFIGS/$modifier"
+    return 0
+  fi
+
+  return 1
+}
+
+is_default_modifier() {
+  local modifier="$1"
+  local default_modifier
+
+  for default_modifier in "${DEFAULT_MODIFIERS[@]}"; do
+    if [ "$default_modifier" = "$modifier" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 MOZCONFIG_CONTENT=""
 
-MOZCONFIG_CONTENT+="MOZBUILD=$HOME/.mozbuild"
-MOZCONFIG_CONTENT+="$NEWLINE"
 MOZCONFIG_CONTENT+="MOZCONFIGS=$MOZCONFIGS"
-MOZCONFIG_CONTENT+="$NEWLINE"
-MOZCONFIG_CONTENT+="mk_add_options AUTOCLOBBER=1"
 MOZCONFIG_CONTENT+="$NEWLINE"
 
 if [ -d "$CHECKOUT/comm" ]; then
@@ -36,16 +77,18 @@ if [ -d "$CHECKOUT/comm" ]; then
 fi
 
 IDENTIFIER=""
-for modifier in $MODIFIERS compile-environment; do
-  if [ ! -f "$MOZCONFIGS/$modifier" ]; then
+for modifier in $MODIFIERS; do
+  if ! modifier_path="$(resolve_modifier_path "$modifier")"; then
     echo "No config named $modifier"
     exit 1
   fi
-  if [ "$modifier" != "compile-environment" ]; then
+
+  MOZCONFIG_CONTENT+=$(cat "$modifier_path")
+  MOZCONFIG_CONTENT+="$NEWLINE"
+
+  if ! is_default_modifier "$modifier"; then
     IDENTIFIER+="-$modifier"
   fi
-  MOZCONFIG_CONTENT+=$(cat "$MOZCONFIGS/$modifier")
-  MOZCONFIG_CONTENT+="$NEWLINE"
 done
 
 OBJDIR="$CHECKOUT/obj$IDENTIFIER"
