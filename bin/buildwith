@@ -69,11 +69,13 @@ MOZCONFIG_CONTENT+="MOZCONFIGS=$MOZCONFIGS"
 MOZCONFIG_CONTENT+="$NEWLINE"
 
 if [ -d "$CHECKOUT/comm" ]; then
-  echo "Saw comm directory, assuming you want to build thunderbird..."
-  MOZCONFIG_CONTENT+="ac_add_options --enable-application=comm/mail"
-  MOZCONFIG_CONTENT+="$NEWLINE"
-  MOZCONFIG_CONTENT+="ac_add_options --with-app-basename=Thunderbird"
-  MOZCONFIG_CONTENT+="$NEWLINE"
+  read -rp "comm/ directory found. Build Thunderbird? [y/N] " answer
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    MOZCONFIG_CONTENT+="ac_add_options --enable-application=comm/mail"
+    MOZCONFIG_CONTENT+="$NEWLINE"
+    MOZCONFIG_CONTENT+="ac_add_options --with-app-basename=Thunderbird"
+    MOZCONFIG_CONTENT+="$NEWLINE"
+  fi
 fi
 
 IDENTIFIER=""
